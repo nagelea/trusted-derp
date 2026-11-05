@@ -32,6 +32,19 @@ try:
    if attempt==29:raise
    time.sleep(.25)
  report['https_verified_status']=status
+ with socket.create_connection(('127.0.0.1',port),timeout=3) as raw:
+  with ctx.wrap_socket(raw,server_hostname='127.0.0.1') as secure:
+   secure.sendall(b'GET /derp HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\nUpgrade: DERP\r\n\r\n')
+   stream=secure.makefile('rb');header=b''
+   while not header.endswith(b'\r\n\r\n'):
+    byte=stream.read(1)
+    if not byte:raise RuntimeError('DERP upgrade closed early')
+    header+=byte
+    assert len(header)<16384
+   assert b' 101 ' in header.split(b'\r\n')[0]
+   frame=stream.read(5);kind,size=struct.unpack('!BI',frame)
+   assert kind==1 and size==40 and len(stream.read(size))==40
+ report['derp_protocol_upgrade_and_server_key_frame_valid']=True
  transaction=os.urandom(12)
  with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
   s.settimeout(3);s.sendto(struct.pack('!HHI12s',1,0,0x2112A442,transaction),('127.0.0.1',udp));data,_=s.recvfrom(2048)

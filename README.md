@@ -71,7 +71,7 @@ The identity and DERP containers share a local Unix socket and run without addit
 
 ## Tests and limits
 
-The CI smoke test checks the runtime user, the paired client executable, pinned upstream build metadata, certificate-verified HTTPS204, a real UDP STUN binding response, and Compose syntax. All temporary test ports bind to localhost.
+The CI smoke test checks the runtime user, the paired client executable, pinned upstream build metadata, certificate-verified HTTPS204, the DERP101 protocol upgrade and server key frame, a real UDP STUN binding response, and Compose syntax. All temporary test ports bind to localhost.
 
 The smoke test is a transport check and does not enroll a device into your production Headscale network. Authenticated forwarding and denial of unknown devices must also be checked when deploying to a real network. A successful build does not establish a particular cloud provider's route quality or guarantee GHCR download speed from that provider.
 
