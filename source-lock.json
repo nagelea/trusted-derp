@@ -1,0 +1,14 @@
+{
+  "upstream_repository": "https://github.com/tailscale/tailscale",
+  "upstream_version": "v1.104.5",
+  "upstream_commit": "73a48057aaf5f60e4f770b398e9b7af576b01dbe",
+  "go_base": "docker.io/library/golang:1.27.3-bookworm@sha256:c93aa68d51e382ec1ab4caa559ae9efd7858d8e5330051671c56c1096eaccd66",
+  "platforms": ["linux/amd64"],
+  "action_pins": {
+    "actions/checkout": "d23441a48e516b6c34aea4fa41551a30e30af803",
+    "docker/setup-buildx-action": "8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+    "docker/login-action": "c94ce9fb468520275223c153574b00df6fe4bcc9",
+    "docker/build-push-action": "10e90e3645eae34f1e60eeb005ba3a3d33f178e8",
+    "actions/attest": "1e69f48acb82d1966a394da916b4c1698aa569d6"
+  }
+}

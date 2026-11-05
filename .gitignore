@@ -1,0 +1,12 @@
+.env
+certs/
+data/
+run/
+.work/
+__pycache__/
+*.tar
+*.tar.gz
+*.zip
+*.key
+*.crt
+*.pem

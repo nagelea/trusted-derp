@@ -1,0 +1,79 @@
+name: Build, test and publish DERP
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: derp-image-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Check immutable inputs
+        run: python3 scripts/check_lock.py
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Build the image to be tested
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          load: true
+          push: false
+          platforms: linux/amd64
+          tags: local/trusted-derp:ci
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Test the built image
+        run: sudo python3 scripts/smoke.py --image local/trusted-derp:ci
+      - name: Decide publication name
+        id: name
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          VERSION="$(python3 -c 'import json; print(json.load(open("source-lock.json"))["upstream_version"])')"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tag=$IMAGE:$VERSION-${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - name: Sign in to GHCR
+        if: steps.name.outputs.tag != ''
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the exact tested image
+        id: pushed
+        if: steps.name.outputs.tag != ''
+        env:
+          PUBLISH_TAG: ${{ steps.name.outputs.tag }}
+        run: |
+          docker tag local/trusted-derp:ci "$PUBLISH_TAG"
+          docker push "$PUBLISH_TAG"
+          FULL="$(docker image inspect --format '{{index .RepoDigests 0}}' "$PUBLISH_TAG")"
+          DIGEST="${FULL##*@}"
+          test "${DIGEST#sha256:}" != "$DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Deploy by digest: ${{ steps.name.outputs.image }}@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+      - name: Attest the published digest
+        if: steps.name.outputs.tag != ''
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-name: ${{ steps.name.outputs.image }}
+          subject-digest: ${{ steps.pushed.outputs.digest }}
+          push-to-registry: true

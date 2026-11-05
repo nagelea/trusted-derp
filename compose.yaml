@@ -1,0 +1,46 @@
+services:
+  identity:
+    image: ${DERP_IMAGE:?Set a verified GHCR image digest in .env}
+    entrypoint: ["/usr/local/bin/tailscaled"]
+    command:
+      - --tun=userspace-networking
+      - --state=/var/lib/tailscale/tailscaled.state
+      - --socket=/run/tailscale/tailscaled.sock
+      - --port=0
+      - --no-logs-no-support
+    user: "65532:65532"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./data/identity:/var/lib/tailscale
+      - ./run:/run/tailscale
+    tmpfs: [/tmp]
+  derper:
+    image: ${DERP_IMAGE:?Set a verified GHCR image digest in .env}
+    command:
+      - -a=:8443
+      - -hostname=${DERP_HOSTNAME:?Set this node's public IPv4 in .env}
+      - -certmode=manual
+      - -certdir=/certs
+      - -c=/var/lib/derper/derper.json
+      - -http-port=-1
+      - -stun=true
+      - -stun-port=13478
+      - -verify-clients
+      - -socket=/run/tailscale/tailscaled.sock
+    depends_on: [identity]
+    user: "65532:65532"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "${DERP_BIND_IP:-0.0.0.0}:443:8443/tcp"
+      - "${DERP_BIND_IP:-0.0.0.0}:3478:13478/udp"
+    volumes:
+      - ./data/derper:/var/lib/derper
+      - ./certs:/certs:ro
+      - ./run:/run/tailscale:ro
+    tmpfs: [/tmp]
