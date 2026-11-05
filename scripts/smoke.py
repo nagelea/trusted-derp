@@ -1,5 +1,5 @@
 """Linux Docker integration checks. The temporary test ports bind localhost only."""
-import argparse,hashlib,http.client,json,os,re,shutil,socket,ssl,struct,subprocess,tempfile,time
+import argparse,hashlib,http.client,json,os,re,shutil,socket,ssl,struct,subprocess,tempfile,time,zlib
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--image',required=True);a=p.parse_args()
 assert os.geteuid()==0,'Run with sudo; test directories are owned by runtime UID 65532'
@@ -46,8 +46,18 @@ try:
    assert kind==1 and size==40 and len(stream.read(size))==40
  report['derp_protocol_upgrade_and_server_key_frame_valid']=True
  transaction=os.urandom(12)
+ # Match net/stun.Request in the pinned Tailscale source: the server requires
+ # SOFTWARE=tailnode and a final RFC 5389 FINGERPRINT, not an empty request.
+ request=struct.pack('!HHI12s',1,20,0x2112A442,transaction)+struct.pack('!HH8s',0x8022,8,b'tailnode')
+ request+=struct.pack('!HHI',0x8028,4,zlib.crc32(request)^0x5354554e)
  with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as s:
-  s.settimeout(3);s.sendto(struct.pack('!HHI12s',1,0,0x2112A442,transaction),('127.0.0.1',udp));data,_=s.recvfrom(2048)
+  s.settimeout(1)
+  for attempt in range(5):
+   s.sendto(request,('127.0.0.1',udp))
+   try:
+    data,_=s.recvfrom(2048);break
+   except socket.timeout:
+    if attempt==4:raise
  kind,length,cookie,reply_transaction=struct.unpack('!HHI12s',data[:20])
  assert kind==0x101 and cookie==0x2112A442 and reply_transaction==transaction and len(data)==20+length
  report['stun_binding_response_valid']=True
@@ -61,6 +71,11 @@ try:
  run(['docker','compose','--env-file',str(fake),'-f',str(root/'compose.yaml'),'config','--quiet'])
  report['compose_config_valid']=True
  (root/'VALIDATION.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+except Exception:
+ if cid and re.fullmatch('[0-9a-f]{64}',cid):
+  logs=run(['docker','logs','--tail','80',cid],check=False)
+  print('DERP test container logs:\n'+logs.stdout+logs.stderr,flush=True)
+ raise
 finally:
  if cid and re.fullmatch('[0-9a-f]{64}',cid):run(['docker','rm','-f',cid],check=False)
  assert folder.parent==Path(tempfile.gettempdir()) and folder.name.startswith('trusted-derp-test-')
