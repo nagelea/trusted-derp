@@ -11,7 +11,7 @@ This repository is independent of Tailscale. The word trusted describes the audi
 - Go verifies downloaded modules against the upstream dependency lock files and checksum database.
 - The final image uses `scratch`, contains no shell or package manager, and runs as UID/GID 65532.
 - Builds include upstream revision, Go build information, module inventory and binary hashes under `/usr/share/derp/`.
-- PRs and pushes to `main` build and test. A manual Actions run or `v*` release tag publishes **the exact tested image**.
+- PRs build and test without publication. Pushes to `main`, `v*` release tags and manual runs on `main` publish **the exact tested image** after those checks pass.
 - Publication uses the workflow's short-lived `GITHUB_TOKEN`. No personal access token is stored in this repository.
 - The workflow creates GitHub artifact provenance for the published digest. Deploy by `ghcr.io/nagelea/trusted-derp@sha256:...`, not a floating `latest` tag.
 
